@@ -1,0 +1,3 @@
+{
+  "presets": ["@babel/preset-env"] //指定babel的预设
+}
