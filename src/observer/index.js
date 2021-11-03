@@ -1,12 +1,28 @@
+import { protoMethods } from './array'
+import { defineProperty } from '../until'
 class Observer {
   constructor(data) {
-    this.walk(data) //所有的逻辑放在构造函数里,太臃肿, 封装到一个方法中去做代理
+    defineProperty(data, '__ob__', this) //做标记, 是否观测过
+
+    if (Array.isArray(data)) {
+      data.__proto__ = protoMethods //对数组的方法进行拦截
+      this.arrayObserver(data) //对数组中的对象类型进行观测
+    } else {
+      this.walk(data)
+    }
+
+    //所有的逻辑放在构造函数里,太臃肿, 封装到一个方法中去做代理
   }
 
   walk(data) {
     const keys = Object.keys(data)
     keys.forEach((key) => {
       defineReactive(data, key, data[key])
+    })
+  }
+  arrayObserver(arr) {
+    arr.forEach((item) => {
+      observer(item)
     })
   }
 }
@@ -29,6 +45,9 @@ function defineReactive(data, key, value) {
 export function observer(data) {
   // 在js中typeof null 也是object
   if (typeof data !== 'object' || typeof data === null) {
+    return
+  }
+  if (data.__ob__) {
     return
   }
   // 真正的处理data, 放在一个类里, 封装性比较好

@@ -42,11 +42,55 @@
     return Constructor;
   }
 
+  var oldArrayMethods = Array.prototype;
+  var protoMethods = Object.create(oldArrayMethods);
+  var methods = ['pop', 'push', 'unshift', 'shift', 'reverse', 'sort', 'splice'];
+  methods.forEach(function (method) {
+    protoMethods[method] = function () {
+      var inserted = null;
+
+      for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+        args[_key] = arguments[_key];
+      }
+
+      switch (method) {
+        case 'push':
+        case 'unshift':
+          inserted = args;
+          break;
+
+        case 'splice':
+          inserted = args.slice(2);
+      }
+
+      this.__ob__.arrayObserver(inserted);
+
+      return oldArrayMethods[method].apply(this, args); //执行原方法逻辑
+    };
+  });
+
+  function defineProperty(target, attr, value) {
+    Object.defineProperty(target, attr, {
+      enumerable: false,
+      configurable: false,
+      value: value
+    });
+  }
+
   var Observer = /*#__PURE__*/function () {
     function Observer(data) {
       _classCallCheck(this, Observer);
 
-      this.walk(data); //所有的逻辑放在构造函数里,太臃肿, 封装到一个方法中去做代理
+      defineProperty(data, '__ob__', this); //做标记, 是否观测过
+
+      if (Array.isArray(data)) {
+        data.__proto__ = protoMethods; //对数组的方法进行拦截
+
+        this.arrayObserver(data); //对数组中的对象类型进行观测
+      } else {
+        this.walk(data);
+      } //所有的逻辑放在构造函数里,太臃肿, 封装到一个方法中去做代理
+
     }
 
     _createClass(Observer, [{
@@ -55,6 +99,13 @@
         var keys = Object.keys(data);
         keys.forEach(function (key) {
           defineReactive(data, key, data[key]);
+        });
+      }
+    }, {
+      key: "arrayObserver",
+      value: function arrayObserver(arr) {
+        arr.forEach(function (item) {
+          observer(item);
         });
       }
     }]);
@@ -83,6 +134,10 @@
   function observer(data) {
     // 在js中typeof null 也是object
     if (_typeof(data) !== 'object' || typeof data === null) {
+      return;
+    }
+
+    if (data.__ob__) {
       return;
     } // 真正的处理data, 放在一个类里, 封装性比较好
 
