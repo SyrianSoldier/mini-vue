@@ -76,6 +76,22 @@
       value: value
     });
   }
+  function proxy(target, data) {
+    var _loop = function _loop(key) {
+      Object.defineProperty(target, key, {
+        get: function get() {
+          return data[key];
+        },
+        set: function set(newValue) {
+          data[key] = newValue;
+        }
+      });
+    };
+
+    for (var key in data) {
+      _loop(key);
+    }
+  }
 
   var Observer = /*#__PURE__*/function () {
     function Observer(data) {
@@ -154,14 +170,173 @@
     vm._data = data = typeof data === 'function' ? data.call(vm) : data; //对data是函数的情况执行处理,保证this是vm
     //开始数据劫持
 
-    observer(data);
+    observer(data); //数据代理
+
+    proxy(vm, vm._data);
+  }
+
+  // 匹配标签属性, 三个分组, 第一个分组是属性名, 第二个分组是等号, 第三四五个分组是属性名(分别对应着"" '' 和没有引号)
+  var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/; // 匹配标签名
+
+  var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z]*"; // 匹配命名空间标签名
+
+  var qnameCapture = "((?:".concat(ncname, "\\:)?").concat(ncname, ")"); // 匹配开始标签的左尖括号
+
+  var startTagOpen = new RegExp("^<".concat(qnameCapture)); // 匹配结束标签的右标签 >
+
+  var startTagClose = /^\s*(\/?)>/; // 匹配结束标签 </div>
+
+  var endTag = new RegExp("^<\\/".concat(qnameCapture, "[^>]*>")); // 匹配mustache语法 {{}}
+
+  function htmlParser(html) {
+    function createASTElement(tagName, attrs) {
+      return {
+        tag: tagName,
+        type: 1,
+        attrs: attrs,
+        children: [],
+        parent: null
+      };
+    }
+
+    var root;
+    /* 根节点 */
+
+    var currentParent;
+    /* 当前父节点 */
+
+    var stack = [];
+    /* 栈 */
+
+    function start(tagName, attrs) {
+      var element = createASTElement(tagName, attrs);
+
+      if (!root) {
+        root = element;
+      }
+
+      currentParent = element;
+      stack.push(element);
+    }
+    /* 栈帧顶部是子节点, 下一层是顶部节点的父节点 */
+
+
+    function end() {
+      var element = stack.pop();
+      currentParent = stack[stack.length - 1];
+
+      if (currentParent) {
+        element.parent = currentParent;
+        currentParent.children.push(element);
+      }
+    }
+
+    function chars(text) {
+      text = text.replace(/\s/g, '');
+      currentParent.children.push({
+        type: 3,
+        text: text
+      });
+    }
+
+    function advance(n) {
+      html = html.substring(n);
+    }
+
+    while (html) {
+      var textEnd = html.indexOf('<'); //如果<的下标是0则代表是标签, 如果不是则代表是文本
+
+      if (textEnd == 0) {
+        var startMatch = parseStartTag();
+
+        if (startMatch) {
+          start(startMatch.tagName, startMatch.attrs);
+          continue;
+        }
+
+        var endMatch = html.match(endTag);
+
+        if (endMatch) {
+          end(endMatch[1]);
+          advance(endMatch[0].length);
+          continue;
+        }
+      }
+
+      var text = null;
+
+      if (textEnd > 0) {
+        text = html.substring(0, textEnd);
+      }
+
+      if (text) {
+        chars(text);
+        advance(text.length);
+      }
+    }
+
+    function parseStartTag() {
+      var start = html.match(startTagOpen);
+
+      if (start) {
+        var match = {
+          tagName: start[1],
+          attrs: []
+        };
+        advance(start[0].length);
+        var attr = null;
+        var _end = null;
+
+        while (!(_end = html.match(startTagClose)) && (attr = html.match(attribute))) {
+          match.attrs.push({
+            name: attr[1],
+            value: attr[3] || attr[4] || attr[5]
+            /* 3,4,5均是属性, 分别对应双引号,单引号,无引号写法 */
+
+          });
+          advance(attr[0].length);
+        }
+
+        if (_end) {
+          advance(_end[0].length);
+        }
+
+        return match;
+      }
+    }
+
+    return root;
+  }
+
+  function compileToFunctions(template) {
+    var ast = htmlParser(template);
+    console.log(ast);
   }
 
   function initMixin(Vue) {
     Vue.prototype._init = function (options) {
       var vm = this; // 对做响应式!
 
-      initState(vm);
+      initState(vm); // 模板渲染
+
+      if (this.$options.el) {
+        this.$mount(this.$options.el);
+      }
+    };
+
+    Vue.prototype.$mount = function (el) {
+      var options = this.$options;
+      el = document.querySelector(el);
+      var template = options.template; //假设有template
+
+      if (!options.render) {
+        if (el && !options.template) {
+          template = el.outerHTML;
+        }
+      }
+
+      var render = compileToFunctions(template);
+      options.render = render;
     };
   }
 
