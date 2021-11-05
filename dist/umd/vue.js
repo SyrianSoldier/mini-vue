@@ -42,6 +42,65 @@
     return Constructor;
   }
 
+  function _slicedToArray(arr, i) {
+    return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _unsupportedIterableToArray(arr, i) || _nonIterableRest();
+  }
+
+  function _arrayWithHoles(arr) {
+    if (Array.isArray(arr)) return arr;
+  }
+
+  function _iterableToArrayLimit(arr, i) {
+    var _i = arr == null ? null : typeof Symbol !== "undefined" && arr[Symbol.iterator] || arr["@@iterator"];
+
+    if (_i == null) return;
+    var _arr = [];
+    var _n = true;
+    var _d = false;
+
+    var _s, _e;
+
+    try {
+      for (_i = _i.call(arr); !(_n = (_s = _i.next()).done); _n = true) {
+        _arr.push(_s.value);
+
+        if (i && _arr.length === i) break;
+      }
+    } catch (err) {
+      _d = true;
+      _e = err;
+    } finally {
+      try {
+        if (!_n && _i["return"] != null) _i["return"]();
+      } finally {
+        if (_d) throw _e;
+      }
+    }
+
+    return _arr;
+  }
+
+  function _unsupportedIterableToArray(o, minLen) {
+    if (!o) return;
+    if (typeof o === "string") return _arrayLikeToArray(o, minLen);
+    var n = Object.prototype.toString.call(o).slice(8, -1);
+    if (n === "Object" && o.constructor) n = o.constructor.name;
+    if (n === "Map" || n === "Set") return Array.from(o);
+    if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen);
+  }
+
+  function _arrayLikeToArray(arr, len) {
+    if (len == null || len > arr.length) len = arr.length;
+
+    for (var i = 0, arr2 = new Array(len); i < len; i++) arr2[i] = arr[i];
+
+    return arr2;
+  }
+
+  function _nonIterableRest() {
+    throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+  }
+
   var oldArrayMethods = Array.prototype;
   var protoMethods = Object.create(oldArrayMethods);
   var methods = ['pop', 'push', 'unshift', 'shift', 'reverse', 'sort', 'splice'];
@@ -186,8 +245,7 @@
 
   var startTagClose = /^\s*(\/?)>/; // 匹配结束标签 </div>
 
-  var endTag = new RegExp("^<\\/".concat(qnameCapture, "[^>]*>")); // 匹配mustache语法 {{}}
-
+  var endTag = new RegExp("^<\\/".concat(qnameCapture, "[^>]*>"));
   function htmlParser(html) {
     function createASTElement(tagName, attrs) {
       return {
@@ -308,9 +366,96 @@
     return root;
   }
 
+  // 匹配mustache语法 {{}}
+  var defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g; // 解析属性
+
+  function genProps(attrs) {
+    var str = '';
+
+    for (var i = 0, attr; attr = attrs[i++];) {
+      if (attr.name === 'style') {
+        (function () {
+          var obj = {}; //attr.name示例 "color:red;height:200px"
+
+          attr.value.split(';').forEach(function (item) {
+            //解构赋值,示例: let [key,value]=['color','red']
+            var _item$split = item.split(':'),
+                _item$split2 = _slicedToArray(_item$split, 2),
+                key = _item$split2[0],
+                value = _item$split2[1];
+
+            obj[key] = value;
+          });
+          attr.value = obj;
+        })();
+      }
+
+      str += "".concat(attr.name, ":").concat(JSON.stringify(attr.value), ",");
+    }
+
+    return "{".concat(str.slice(0, -1), "}"); //去除字符传最后的逗号
+  }
+
+  function genChildren(children) {
+    if (!children) return; // 区分不同的child节点, 做不同的处理,(成字符串)
+
+    return children.map(function (child) {
+      return gen(child);
+    }).join(',');
+  }
+
+  function gen(node) {
+    if (node.type === 1) {
+      return generate(node);
+    } // node === 3时
+
+
+    var text = node.text;
+
+    if (!defaultTagRE.test(text)) {
+      return "_v(".concat(JSON.stringify(text), ")");
+    } else {
+      // 当有mustache语法时{{}}
+      var lastIndex = defaultTagRE.lastIndex = 0;
+      var match, index;
+      var tokens = [];
+
+      while (match = defaultTagRE.exec(text)) {
+        index = match.index;
+
+        if (lastIndex < index) {
+          tokens.push("".concat(JSON.stringify(text.slice(lastIndex, index))));
+          lastIndex = match[0].length + index;
+        }
+
+        tokens.push("".concat(match[1].trim()));
+      } // 当匹配完成时, 还有可能后面有字符串
+
+
+      if (text.length > lastIndex) {
+        tokens.push("".concat(text.slice(lastIndex)));
+      }
+
+      return "_v(".concat(tokens.join('+'), ")");
+    }
+  }
+
+  function generate(ast) {
+    var code = "";
+    var attrs = ast.attrs;
+    var children = ast.children; // 目标字符串: '_c('div',{ id:'box',style:{ color:'red' } },_v('hello'+name),_c('div',undefined,_v('你好,李银河'))'
+
+    code = "_c(\"".concat(ast.tag, "\",").concat(attrs.length ? genProps(attrs) : 'undefined', ",").concat(children ? genChildren(children) : '', ")");
+    return code;
+  }
+
   function compileToFunctions(template) {
-    var ast = htmlParser(template);
-    console.log(ast);
+    var ast = htmlParser(template); //生成AST语法树
+
+    var code = generate(ast); //生成render函数备用code字符串
+
+    var render = new Function("with(this){".concat(code, "}"));
+    return render;
   }
 
   function initMixin(Vue) {
@@ -336,6 +481,7 @@
       }
 
       var render = compileToFunctions(template);
+      console.log(render);
       options.render = render;
     };
   }
