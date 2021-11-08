@@ -4,7 +4,7 @@ const defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g
 // 解析属性
 function genProps(attrs) {
   let str = ''
-  for (let i = 0, attr; (attr = attrs[i++]); ) {
+  for (let i = 0, attr; (attr = attrs[i++]);) {
     if (attr.name === 'style') {
       let obj = {}
       //attr.name示例 "color:red;height:200px"
@@ -46,7 +46,7 @@ function gen(node) {
         tokens.push(`${JSON.stringify(text.slice(lastIndex, index))}`)
         lastIndex = match[0].length + index
       }
-      tokens.push(`${match[1].trim()}`)
+      tokens.push(`_s(${match[1].trim()})`)
     }
     // 当匹配完成时, 还有可能后面有字符串
     if (text.length > lastIndex) {
@@ -58,11 +58,10 @@ function gen(node) {
 
 export function generate(ast) {
   let code = ``
-  let attrs = ast.attrs
+  let attrs = ast.attr
   let children = ast.children
   // 目标字符串: '_c('div',{ id:'box',style:{ color:'red' } },_v('hello'+name),_c('div',undefined,_v('你好,李银河'))'
-  code = `_c("${ast.tag}",${attrs.length ? genProps(attrs) : 'undefined'},${
-    children ? genChildren(children) : ''
-  })`
+  code = `_c("${ast.tag}",${attrs?.length ? genProps(attrs) : 'undefined'},${children ? genChildren(children) : ''
+    })`
   return code
 }

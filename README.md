@@ -13,4 +13,7 @@
 3. render2:
   将parserHTML方法抽到parser.js中
   完成了根据AST语法树生成render函数
+
+4. renderMixin
+  完成了_c,_s,_v,mountComponent方法
 ```
