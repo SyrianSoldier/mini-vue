@@ -1,6 +1,6 @@
 import { initState } from './state'
 import { compileToFunctions } from './compiler/index'
-import { mountComponent } from './lifecycle'
+import { callHooks, mountComponent } from './lifecycle'
 import { mergeOptions } from './until'
 export function initMixin(Vue) {
   Vue.prototype._init = function(options) {
@@ -8,8 +8,10 @@ export function initMixin(Vue) {
     // 将Vue上的options合并到this.$options上
     this.$options = mergeOptions(this.constructor.options, options)
     console.log(this.$options)
-    // 对做响应式!
+    // 对做响应式!\
+    callHooks(vm, 'beforeCreate')
     initState(vm)
+    callHooks(vm, 'created')
     // 模板渲染
     if (this.$options.el) {
       this.$mount(this.$options.el)

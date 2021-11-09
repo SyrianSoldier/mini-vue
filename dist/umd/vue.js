@@ -556,7 +556,22 @@
   }
   function mountComponent(vm, el) {
     // 更新虚拟节点
+    callHooks(vm, 'berforeMount'); // vm_render 将render字符串执行, 返回vnode
+    // vm_update
+
     vm._update(vm._render());
+
+    callHooks(vm, 'Mounted');
+  }
+  function callHooks(vm, hook) {
+    // 取出声明周期数组
+    var handlers = vm.$options[hook];
+
+    if (handlers) {
+      for (var i = 0, handler; handler = handlers[i++];) {
+        handler.call(vm);
+      }
+    }
   }
 
   function initMixin(Vue) {
@@ -564,9 +579,11 @@
       var vm = this; // 将Vue上的options合并到this.$options上
 
       this.$options = mergeOptions(this.constructor.options, options);
-      console.log(this.$options); // 对做响应式!
+      console.log(this.$options); // 对做响应式!\
 
-      initState(vm); // 模板渲染
+      callHooks(vm, 'beforeCreate');
+      initState(vm);
+      callHooks(vm, 'created'); // 模板渲染
 
       if (this.$options.el) {
         this.$mount(this.$options.el);
