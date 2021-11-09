@@ -4,6 +4,91 @@
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.Vue = factory());
 })(this, (function () { 'use strict';
 
+  function defineProperty(target, attr, value) {
+    Object.defineProperty(target, attr, {
+      enumerable: false,
+      configurable: false,
+      value: value
+    });
+  }
+  function proxy(target, data) {
+    var _loop = function _loop(key) {
+      Object.defineProperty(target, key, {
+        get: function get() {
+          return data[key];
+        },
+        set: function set(newValue) {
+          data[key] = newValue;
+        }
+      });
+    };
+
+    for (var key in data) {
+      _loop(key);
+    }
+  } // 定义策略模式
+
+  var strategies = {};
+  var LIFE_CYCLE_HOOKS = ['beforeCreate', 'created', 'beforeMount', 'mounted', 'beforeUpdated', 'update', 'beforeDestroy', 'destroyed']; // 合并声明周期的逻辑
+
+  LIFE_CYCLE_HOOKS.forEach(function (hook) {
+    /* 
+      核心逻辑: 1: 没有新配置, 直接返回老配置
+               2:有新配置项, 没有老配置项 返回一个包装新配置项函数的数组
+              3: 新老都有. 合并数组
+    */
+    strategies[hook] = function (oldFn, newFn) {
+      if (newFn) {
+        if (oldFn) {
+          return oldFn.concat(newFn);
+        } else {
+          return [newFn];
+        }
+      } else {
+        return oldFn;
+      }
+    };
+  }); // 合并其他API的逻辑
+
+  strategies['watch'] = function () {};
+
+  strategies['computed'] = function () {}; // todo....
+
+
+  function mergeOptions(oldOptions, newOptions) {
+    var options = {}; // 遍历老配置项 如: option为created, 如果没有老配置(初始化的时候) 则不会走此循环,直接循环新配置项
+
+    for (var option in oldOptions) {
+      // 合并字段
+      mergeField(option);
+    } // 遍历 新配置项
+
+
+    for (var _option in newOptions) {
+      // 如果老配置项没有新配置项的属性
+      if (!oldOptions.hasOwnProperty(_option)) {
+        mergeField(_option);
+      }
+    }
+
+    function mergeField(field) {
+      // 调用不同的策略
+      options[field] = strategies[field](oldOptions[field], newOptions[field]);
+    }
+
+    return options;
+  }
+
+  function globalMixin(Vue) {
+    // mixin的周期存在Vue.options中(缓存池)
+    Vue.options = {};
+
+    Vue.mixin = function (options) {
+      // 合并配置项( 将原有的mixin和正在添加的新mixin合并 )
+      this.options = mergeOptions(this.options, options);
+    };
+  }
+
   function _typeof(obj) {
     "@babel/helpers - typeof";
 
@@ -127,30 +212,6 @@
       return oldArrayMethods[method].apply(this, args); //执行原方法逻辑
     };
   });
-
-  function defineProperty(target, attr, value) {
-    Object.defineProperty(target, attr, {
-      enumerable: false,
-      configurable: false,
-      value: value
-    });
-  }
-  function proxy(target, data) {
-    var _loop = function _loop(key) {
-      Object.defineProperty(target, key, {
-        get: function get() {
-          return data[key];
-        },
-        set: function set(newValue) {
-          data[key] = newValue;
-        }
-      });
-    };
-
-    for (var key in data) {
-      _loop(key);
-    }
-  }
 
   var Observer = /*#__PURE__*/function () {
     function Observer(data) {
@@ -460,7 +521,6 @@
 
   function patch(oldVnode, newVnode) {
     var el = createElm(newVnode);
-    console.log(el);
     var parentEle = oldVnode.parentNode;
     parentEle.insertBefore(el, oldVnode.nextSibling);
     parentEle.removeChild(oldVnode);
@@ -575,12 +635,14 @@
     this.$options = options;
 
     this._init(options);
-  }
+  } // 扩展原型 公共方法挂载原型上
 
-  initMixin(Vue); //公共方法挂载原型上
 
+  initMixin(Vue);
   renderMixin(Vue);
-  lifecycleMixin(Vue);
+  lifecycleMixin(Vue); // 扩展静态方法
+
+  globalMixin(Vue);
 
   return Vue;
 

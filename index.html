@@ -17,6 +17,23 @@
   </div>
   <script src="/dist/umd/vue.js"></script>
   <script>
+
+    Vue.mixin({
+      created() {
+        console.log(111)
+      }
+    })
+    Vue.mixin({
+      created() {
+        console.log(222)
+      }
+    })
+    Vue.mixin({
+      beforeCreate() {
+        console.log(333)
+      }
+    })
+
     const vm = new Vue({
       el: '#app',
       data() {
@@ -26,7 +43,7 @@
         }
       }
     })
-    console.log(vm)
+    console.dir(Vue)
   </script>
 </body>
 

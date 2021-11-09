@@ -16,4 +16,9 @@
 
 4. renderMixin
   完成了_c,_s,_v,mountComponent方法
+  完成了页面的初渲染
+
+5. mixin
+  完成了对声明周期的全局混入
+  如 Vue.mixin({ created(){} })
 ```

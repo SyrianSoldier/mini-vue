@@ -17,3 +17,59 @@ export function proxy(target, data) {
     })
   }
 }
+
+// 定义策略模式
+const strategies = {}
+const LIFE_CYCLE_HOOKS = [
+  'beforeCreate',
+  'created',
+  'beforeMount',
+  'mounted',
+  'beforeUpdated',
+  'update',
+  'beforeDestroy',
+  'destroyed'
+]
+// 合并声明周期的逻辑
+LIFE_CYCLE_HOOKS.forEach(hook => {
+  /* 
+    核心逻辑: 1: 没有新配置, 直接返回老配置
+             2:有新配置项, 没有老配置项 返回一个包装新配置项函数的数组
+            3: 新老都有. 合并数组
+  */
+  strategies[hook] = function(oldFn, newFn) {
+    if (newFn) {
+      if (oldFn) {
+        return oldFn.concat(newFn)
+      } else {
+        return [newFn]
+      }
+    } else {
+      return oldFn
+    }
+  }
+})
+// 合并其他API的逻辑
+strategies['watch'] = function() { }
+strategies['computed'] = function() { }
+// todo....
+export function mergeOptions(oldOptions, newOptions) {
+  let options = {}
+  // 遍历老配置项 如: option为created, 如果没有老配置(初始化的时候) 则不会走此循环,直接循环新配置项
+  for (let option in oldOptions) {
+    // 合并字段
+    mergeField(option)
+  }
+  // 遍历 新配置项
+  for (let option in newOptions) {
+    // 如果老配置项没有新配置项的属性
+    if (!oldOptions.hasOwnProperty(option)) {
+      mergeField(option)
+    }
+  }
+  function mergeField(field) {
+    // 调用不同的策略
+    options[field] = strategies[field](oldOptions[field], newOptions[field])
+  }
+  return options
+}
