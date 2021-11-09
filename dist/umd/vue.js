@@ -50,9 +50,9 @@
     };
   }); // 合并其他API的逻辑
 
-  strategies['watch'] = function () {};
-
-  strategies['computed'] = function () {}; // todo....
+  strategies.data = function (oldFn, newFn) {
+    return newFn;
+  }; // todo....
 
 
   function mergeOptions(oldOptions, newOptions) {
@@ -73,7 +73,11 @@
 
     function mergeField(field) {
       // 调用不同的策略
-      options[field] = strategies[field](oldOptions[field], newOptions[field]);
+      if (strategies[field]) {
+        options[field] = strategies[field](oldOptions[field], newOptions[field]);
+      } else {
+        options[field] = newOptions[field];
+      }
     }
 
     return options;
@@ -557,7 +561,10 @@
 
   function initMixin(Vue) {
     Vue.prototype._init = function (options) {
-      var vm = this; // 对做响应式!
+      var vm = this; // 将Vue上的options合并到this.$options上
+
+      this.$options = mergeOptions(this.constructor.options, options);
+      console.log(this.$options); // 对做响应式!
 
       initState(vm); // 模板渲染
 

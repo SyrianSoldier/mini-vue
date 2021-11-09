@@ -1,9 +1,13 @@
 import { initState } from './state'
 import { compileToFunctions } from './compiler/index'
 import { mountComponent } from './lifecycle'
+import { mergeOptions } from './until'
 export function initMixin(Vue) {
   Vue.prototype._init = function(options) {
     let vm = this
+    // 将Vue上的options合并到this.$options上
+    this.$options = mergeOptions(this.constructor.options, options)
+    console.log(this.$options)
     // 对做响应式!
     initState(vm)
     // 模板渲染

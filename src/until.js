@@ -50,8 +50,9 @@ LIFE_CYCLE_HOOKS.forEach(hook => {
   }
 })
 // 合并其他API的逻辑
-strategies['watch'] = function() { }
-strategies['computed'] = function() { }
+strategies.data = function(oldFn, newFn) {
+  return newFn
+}
 // todo....
 export function mergeOptions(oldOptions, newOptions) {
   let options = {}
@@ -69,7 +70,11 @@ export function mergeOptions(oldOptions, newOptions) {
   }
   function mergeField(field) {
     // 调用不同的策略
-    options[field] = strategies[field](oldOptions[field], newOptions[field])
+    if (strategies[field]) {
+      options[field] = strategies[field](oldOptions[field], newOptions[field])
+    } else {
+      options[field] = newOptions[field]
+    }
   }
   return options
 }
