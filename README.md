@@ -21,4 +21,7 @@
 5. mixin
   完成了对声明周期的全局混入
   如 Vue.mixin({ created(){} })
+
+6: DependCollection
+   完成了对对象的依赖收集
 ```
