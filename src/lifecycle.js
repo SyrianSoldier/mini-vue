@@ -1,16 +1,18 @@
+import Watcher from "./observer/watcher"
 import { patch } from "./vdom/patch"
 
 export function lifecycleMixin(Vue) {
   Vue.prototype._update = function(vnode) {
-    patch(this.$el, vnode)
+    this.$el = patch(this.$el, vnode) // patch将虚拟DOM生成, 并替换原DOM
   }
 }
 export function mountComponent(vm, el) {
   // 更新虚拟节点
-  callHooks(vm, 'berforeMount')
-  // vm_render 将render字符串执行, 返回vnode
-  // vm_update
-  vm._update(vm._render())
+  const updateComponent = () => {
+    vm._update(vm._render())
+  }
+  // 每一个组件有一个唯一的观察者
+  new Watcher(vm, updateComponent, () => { callHooks(vm, 'berforeMount') }, true)
   callHooks(vm, 'Mounted')
 }
 export function callHooks(vm, hook) {

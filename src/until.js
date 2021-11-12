@@ -1,3 +1,5 @@
+import Dep from "./observer/dep"
+
 export function defineProperty(target, attr, value) {
   Object.defineProperty(target, attr, {
     enumerable: false,
@@ -77,4 +79,10 @@ export function mergeOptions(oldOptions, newOptions) {
     }
   }
   return options
+}
+export function pushTarget(watcher) {
+  Dep.target = watcher
+}
+export function popTarget() {
+  Dep.target = null
 }

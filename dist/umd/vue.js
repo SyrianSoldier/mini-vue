@@ -4,95 +4,6 @@
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.Vue = factory());
 })(this, (function () { 'use strict';
 
-  function defineProperty(target, attr, value) {
-    Object.defineProperty(target, attr, {
-      enumerable: false,
-      configurable: false,
-      value: value
-    });
-  }
-  function proxy(target, data) {
-    var _loop = function _loop(key) {
-      Object.defineProperty(target, key, {
-        get: function get() {
-          return data[key];
-        },
-        set: function set(newValue) {
-          data[key] = newValue;
-        }
-      });
-    };
-
-    for (var key in data) {
-      _loop(key);
-    }
-  } // 定义策略模式
-
-  var strategies = {};
-  var LIFE_CYCLE_HOOKS = ['beforeCreate', 'created', 'beforeMount', 'mounted', 'beforeUpdated', 'update', 'beforeDestroy', 'destroyed']; // 合并声明周期的逻辑
-
-  LIFE_CYCLE_HOOKS.forEach(function (hook) {
-    /* 
-      核心逻辑: 1: 没有新配置, 直接返回老配置
-               2:有新配置项, 没有老配置项 返回一个包装新配置项函数的数组
-              3: 新老都有. 合并数组
-    */
-    strategies[hook] = function (oldFn, newFn) {
-      if (newFn) {
-        if (oldFn) {
-          return oldFn.concat(newFn);
-        } else {
-          return [newFn];
-        }
-      } else {
-        return oldFn;
-      }
-    };
-  }); // 合并其他API的逻辑
-
-  strategies.data = function (oldFn, newFn) {
-    return newFn;
-  }; // todo....
-
-
-  function mergeOptions(oldOptions, newOptions) {
-    var options = {}; // 遍历老配置项 如: option为created, 如果没有老配置(初始化的时候) 则不会走此循环,直接循环新配置项
-
-    for (var option in oldOptions) {
-      // 合并字段
-      mergeField(option);
-    } // 遍历 新配置项
-
-
-    for (var _option in newOptions) {
-      // 如果老配置项没有新配置项的属性
-      if (!oldOptions.hasOwnProperty(_option)) {
-        mergeField(_option);
-      }
-    }
-
-    function mergeField(field) {
-      // 调用不同的策略
-      if (strategies[field]) {
-        options[field] = strategies[field](oldOptions[field], newOptions[field]);
-      } else {
-        options[field] = newOptions[field];
-      }
-    }
-
-    return options;
-  }
-
-  function globalMixin(Vue) {
-    // mixin的周期存在Vue.options中(缓存池)
-    Vue.options = {};
-
-    Vue.mixin = function (options) {
-      // 合并配置项( 将原有的mixin和正在添加的新mixin合并 )
-      this.options = mergeOptions(this.options, options);
-    };
-  }
-
   function _typeof(obj) {
     "@babel/helpers - typeof";
 
@@ -190,6 +101,138 @@
     throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
   }
 
+  var id$1 = 0;
+
+  var Dep = /*#__PURE__*/function () {
+    function Dep() {
+      _classCallCheck(this, Dep);
+
+      this.id = id$1++; // 订阅爹
+
+      this.subs = [];
+    }
+
+    _createClass(Dep, [{
+      key: "depend",
+      value: function depend() {
+        // 当前watcher添加依赖(依赖收集)
+        Dep.target.addDep(this);
+      }
+    }, {
+      key: "notify",
+      value: function notify() {
+        // 通知watcher修改更新视图
+        this.subs.forEach(function (watcher) {
+          watcher.update();
+        });
+      }
+    }, {
+      key: "addSub",
+      value: function addSub(watcher) {
+        this.subs.push(watcher);
+      }
+    }]);
+
+    return Dep;
+  }();
+
+  Dep.target = null; // 用来记录依赖所属的组件Watcher
+
+  function defineProperty(target, attr, value) {
+    Object.defineProperty(target, attr, {
+      enumerable: false,
+      configurable: false,
+      value: value
+    });
+  }
+  function proxy(target, data) {
+    var _loop = function _loop(key) {
+      Object.defineProperty(target, key, {
+        get: function get() {
+          return data[key];
+        },
+        set: function set(newValue) {
+          data[key] = newValue;
+        }
+      });
+    };
+
+    for (var key in data) {
+      _loop(key);
+    }
+  } // 定义策略模式
+
+  var strategies = {};
+  var LIFE_CYCLE_HOOKS = ['beforeCreate', 'created', 'beforeMount', 'mounted', 'beforeUpdated', 'update', 'beforeDestroy', 'destroyed']; // 合并声明周期的逻辑
+
+  LIFE_CYCLE_HOOKS.forEach(function (hook) {
+    /* 
+      核心逻辑: 1: 没有新配置, 直接返回老配置
+               2:有新配置项, 没有老配置项 返回一个包装新配置项函数的数组
+              3: 新老都有. 合并数组
+    */
+    strategies[hook] = function (oldFn, newFn) {
+      if (newFn) {
+        if (oldFn) {
+          return oldFn.concat(newFn);
+        } else {
+          return [newFn];
+        }
+      } else {
+        return oldFn;
+      }
+    };
+  }); // 合并其他API的逻辑
+
+  strategies.data = function (oldFn, newFn) {
+    return newFn;
+  }; // todo....
+
+
+  function mergeOptions(oldOptions, newOptions) {
+    var options = {}; // 遍历老配置项 如: option为created, 如果没有老配置(初始化的时候) 则不会走此循环,直接循环新配置项
+
+    for (var option in oldOptions) {
+      // 合并字段
+      mergeField(option);
+    } // 遍历 新配置项
+
+
+    for (var _option in newOptions) {
+      // 如果老配置项没有新配置项的属性
+      if (!oldOptions.hasOwnProperty(_option)) {
+        mergeField(_option);
+      }
+    }
+
+    function mergeField(field) {
+      // 调用不同的策略
+      if (strategies[field]) {
+        options[field] = strategies[field](oldOptions[field], newOptions[field]);
+      } else {
+        options[field] = newOptions[field];
+      }
+    }
+
+    return options;
+  }
+  function pushTarget(watcher) {
+    Dep.target = watcher;
+  }
+  function popTarget() {
+    Dep.target = null;
+  }
+
+  function globalMixin(Vue) {
+    // mixin的周期存在Vue.options中(缓存池)
+    Vue.options = {};
+
+    Vue.mixin = function (options) {
+      // 合并配置项( 将原有的mixin和正在添加的新mixin合并 )
+      this.options = mergeOptions(this.options, options);
+    };
+  }
+
   var oldArrayMethods = Array.prototype;
   var protoMethods = Object.create(oldArrayMethods);
   var methods = ['pop', 'push', 'unshift', 'shift', 'reverse', 'sort', 'splice'];
@@ -257,16 +300,25 @@
 
 
   function defineReactive(data, key, value) {
+    var dep = new Dep(); // 每一个属性对应一个依赖
+
     observer(value); //如果对象的属性值仍为对象, 递归!
 
     Object.defineProperty(data, key, {
       get: function get() {
+        if (Dep.target) {
+          // 将依赖添加到组件Wacher中
+          dep.depend();
+        }
+
         return value;
       },
       set: function set(newValue) {
         observer(newValue); //如果修改的属性依然为对象, 递归!
 
-        value = newValue;
+        value = newValue; // 每当修改依赖数据, 通知观察者修改视图
+
+        dep.notify();
       }
     });
   }
@@ -523,11 +575,65 @@
     return render;
   }
 
+  var id = 0;
+
+  var Watcher = /*#__PURE__*/function () {
+    function Watcher(vm, updateComponent, callback, isRender) {
+      _classCallCheck(this, Watcher);
+
+      this.vm = vm;
+      this.updateComponent = updateComponent;
+      this.callback = callback;
+      this.isRender = isRender;
+      this.deps = []; // 记录watcher对应的依赖数据
+
+      this.depsId = new Set(); // 利用set去重的特性, 记录
+
+      this.id = id++;
+
+      if (typeof updateComponent === 'function') {
+        this.getter = updateComponent;
+      }
+
+      this.get();
+    }
+
+    _createClass(Watcher, [{
+      key: "get",
+      value: function get() {
+        // 每次渲染页面前标记下当前组件被哪个watcher管理
+        pushTarget(this);
+        this.getter(); // 渲染页面后取消标记
+
+        popTarget();
+      }
+    }, {
+      key: "addDep",
+      value: function addDep(dep) {
+        // 双项添加, 组件wather记录收集依赖, 每个依赖记录自己的爹
+        // 如果不重复, 便添加该dep 为了避免 watcher.deps[name,name] 出现多个同名依赖的情况, 一个属性只对应一个依赖
+        if (!this.depsId.has(dep.id)) {
+          this.deps.push(dep);
+          dep.addSub(this);
+          this.depsId.add(dep.id);
+        }
+      }
+    }, {
+      key: "update",
+      value: function update() {
+        this.getter();
+      }
+    }]);
+
+    return Watcher;
+  }();
+
   function patch(oldVnode, newVnode) {
     var el = createElm(newVnode);
     var parentEle = oldVnode.parentNode;
     parentEle.insertBefore(el, oldVnode.nextSibling);
     parentEle.removeChild(oldVnode);
+    return el;
   }
 
   function createElm(vnode) {
@@ -551,16 +657,19 @@
 
   function lifecycleMixin(Vue) {
     Vue.prototype._update = function (vnode) {
-      patch(this.$el, vnode);
+      this.$el = patch(this.$el, vnode); // patch将虚拟DOM生成, 并替换原DOM
     };
   }
   function mountComponent(vm, el) {
     // 更新虚拟节点
-    callHooks(vm, 'berforeMount'); // vm_render 将render字符串执行, 返回vnode
-    // vm_update
+    var updateComponent = function updateComponent() {
+      vm._update(vm._render());
+    }; // 每一个组件有一个唯一的观察者
 
-    vm._update(vm._render());
 
+    new Watcher(vm, updateComponent, function () {
+      callHooks(vm, 'berforeMount');
+    }, true);
     callHooks(vm, 'Mounted');
   }
   function callHooks(vm, hook) {

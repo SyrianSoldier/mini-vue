@@ -1,5 +1,6 @@
 import { protoMethods } from './array'
 import { defineProperty } from '../until'
+import Dep from './dep'
 class Observer {
   constructor(data) {
     defineProperty(data, '__ob__', this) //做标记, 是否观测过
@@ -30,14 +31,20 @@ class Observer {
 // 使用闭包 用value保存data[key]的值
 // 当访问data的属性时, 实际上访问和修改的是闭包value中的值
 function defineReactive(data, key, value) {
+  const dep = new Dep() // 每一个属性对应一个依赖
   observer(value) //如果对象的属性值仍为对象, 递归!
   Object.defineProperty(data, key, {
     get() {
+      if (Dep.target) { // 将依赖添加到组件Wacher中
+        dep.depend()
+      }
       return value
     },
     set(newValue) {
       observer(newValue) //如果修改的属性依然为对象, 递归!
       value = newValue
+      // 每当修改依赖数据, 通知观察者修改视图
+      dep.notify()
     }
   })
 }
