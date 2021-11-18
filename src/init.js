@@ -7,7 +7,6 @@ export function initMixin(Vue) {
     let vm = this
     // 将Vue上的options合并到this.$options上
     this.$options = mergeOptions(this.constructor.options, options)
-    console.log(this.$options)
     // 对做响应式!\
     callHooks(vm, 'beforeCreate')
     initState(vm)

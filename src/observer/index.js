@@ -3,7 +3,10 @@ import { defineProperty } from '../until'
 import Dep from './dep'
 class Observer {
   constructor(data) {
-    defineProperty(data, '__ob__', this) //做标记, 是否观测过
+    // 为每个对象(包括数组)添加dep属性, 这样数组就有了dep
+    this.dep = new Dep()
+    //做标记, 是否观测过以及保留指针
+    defineProperty(data, '__ob__', this)
 
     if (Array.isArray(data)) {
       data.__proto__ = protoMethods //对数组的方法进行拦截
@@ -32,11 +35,16 @@ class Observer {
 // 当访问data的属性时, 实际上访问和修改的是闭包value中的值
 function defineReactive(data, key, value) {
   const dep = new Dep() // 每一个属性对应一个依赖
-  observer(value) //如果对象的属性值仍为对象, 递归!
+  let childDep = observer(value) //如果对象的属性值仍为对象, 递归!
   Object.defineProperty(data, key, {
     get() {
       if (Dep.target) { // 将依赖添加到组件Wacher中
+        // 对属性做依赖收集
         dep.depend()
+        if (childDep.dep) {
+          // 对值做依赖收集
+          childDep.dep.depend()
+        }
       }
       return value
     },
@@ -52,11 +60,11 @@ function defineReactive(data, key, value) {
 export function observer(data) {
   // 在js中typeof null 也是object
   if (typeof data !== 'object' || typeof data === null) {
-    return
+    return data
   }
   if (data.__ob__) {
-    return
+    return data
   }
   // 真正的处理data, 放在一个类里, 封装性比较好
-  new Observer(data)
+  return new Observer(data)
 }

@@ -3,7 +3,7 @@ const protoMethods = Object.create(oldArrayMethods)
 const methods = ['pop', 'push', 'unshift', 'shift', 'reverse', 'sort', 'splice']
 
 methods.forEach((method) => {
-  protoMethods[method] = function (...args) {
+  protoMethods[method] = function(...args) {
     let inserted = null
     switch (method) {
       case 'push':
@@ -16,7 +16,9 @@ methods.forEach((method) => {
         break
     }
     this.__ob__.arrayObserver(inserted)
-    return oldArrayMethods[method].apply(this, args) //执行原方法逻辑
+    const ret = oldArrayMethods[method].apply(this, args) //执行原方法逻辑
+    this.__ob__.dep.notify() // 通知更新视图
+    return ret
   }
 })
 

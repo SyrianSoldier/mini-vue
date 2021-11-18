@@ -256,7 +256,12 @@
 
       this.__ob__.arrayObserver(inserted);
 
-      return oldArrayMethods[method].apply(this, args); //执行原方法逻辑
+      var ret = oldArrayMethods[method].apply(this, args); //执行原方法逻辑
+
+      this.__ob__.dep.notify(); // 通知更新视图
+
+
+      return ret;
     };
   });
 
@@ -264,7 +269,10 @@
     function Observer(data) {
       _classCallCheck(this, Observer);
 
-      defineProperty(data, '__ob__', this); //做标记, 是否观测过
+      // 为每个对象(包括数组)添加dep属性, 这样数组就有了dep
+      this.dep = new Dep(); //做标记, 是否观测过以及保留指针
+
+      defineProperty(data, '__ob__', this);
 
       if (Array.isArray(data)) {
         data.__proto__ = protoMethods; //对数组的方法进行拦截
@@ -302,13 +310,19 @@
   function defineReactive(data, key, value) {
     var dep = new Dep(); // 每一个属性对应一个依赖
 
-    observer(value); //如果对象的属性值仍为对象, 递归!
+    var childDep = observer(value); //如果对象的属性值仍为对象, 递归!
 
     Object.defineProperty(data, key, {
       get: function get() {
         if (Dep.target) {
           // 将依赖添加到组件Wacher中
+          // 对属性做依赖收集
           dep.depend();
+
+          if (childDep.dep) {
+            // 对值做依赖收集
+            childDep.dep.depend();
+          }
         }
 
         return value;
@@ -326,15 +340,15 @@
   function observer(data) {
     // 在js中typeof null 也是object
     if (_typeof(data) !== 'object' || typeof data === null) {
-      return;
+      return data;
     }
 
     if (data.__ob__) {
-      return;
+      return data;
     } // 真正的处理data, 放在一个类里, 封装性比较好
 
 
-    new Observer(data);
+    return new Observer(data);
   }
 
   function initState(vm) {
@@ -483,19 +497,20 @@
     return root;
   }
 
-  // 匹配mustache语法 {{}}
-  var defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g; // 解析属性
+  var defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g;
 
   function genProps(attrs) {
-    var str = '';
+    var str = ''; // 循环属性
 
-    for (var i = 0, attr; attr = attrs[i++];) {
-      if (attr.name === 'style') {
+    for (var i = 0; i < attrs.length; i++) {
+      var attr = attrs[i]; // 如果是 style 需要单独判断
+
+      if (attr.name == 'style') {
         (function () {
-          var obj = {}; //attr.name示例 "color:red;height:200px"
+          var obj = {}; // 通过 分割 ; 来讲 style 分成 数组
 
           attr.value.split(';').forEach(function (item) {
-            //解构赋值,示例: let [key,value]=['color','red']
+            // 再通过 分割 ： 将键值保存
             var _item$split = item.split(':'),
                 _item$split2 = _slicedToArray(_item$split, 2),
                 key = _item$split2[0],
@@ -503,66 +518,74 @@
 
             obj[key] = value;
           });
-          attr.value = obj;
         })();
       }
 
       str += "".concat(attr.name, ":").concat(JSON.stringify(attr.value), ",");
     }
+    /*  删除最后的 逗号， slice(start,end)
+    start 必需。规定从何处开始选取。如果是负数，那么它规定从数组尾部开始算起的位置。也就是说，-1 指最后一个元素，-2 指倒数第二个元素，以此类推。
+    end	可选。规定从何处结束选取。如果没有指定该参数，那么切分的数组包含从 start 到数组结束的所有元素。如果这个参数是负数，那么它规定的是从数组尾部开始算起的元素。 */
 
-    return "{".concat(str.slice(0, -1), "}"); //去除字符传最后的逗号
+
+    return "{".concat(str.slice(0, -1), "}");
   }
 
-  function genChildren(children) {
-    if (!children) return; // 区分不同的child节点, 做不同的处理,(成字符串)
+  function genChildren(el) {
+    var children = el.children;
 
-    return children.map(function (child) {
-      return gen(child);
-    }).join(',');
+    if (children) {
+      //将子元素用逗号拼接
+      return children.map(function (child) {
+        return gen(child);
+      }).join(',');
+    }
   }
 
   function gen(node) {
-    if (node.type === 1) {
+    if (node.type == 1) {
+      // 元素
       return generate(node);
-    } // node === 3时
-
-
-    var text = node.text;
-
-    if (!defaultTagRE.test(text)) {
-      return "_v(".concat(JSON.stringify(text), ")");
     } else {
-      // 当有mustache语法时{{}}
-      var lastIndex = defaultTagRE.lastIndex = 0;
-      var match, index;
+      var text = node.text; // 不带 花括号的文本
+
+      if (!defaultTagRE.test(text)) {
+        // JSON.stringify 才能将 文本带上 双引号，不然就会被解析为 变量
+        return "_v(".concat(JSON.stringify(text).trim(), ")");
+      } // 带 花括号的文本需要单独判断  e{{a}} b {{c}} d
+
+
       var tokens = [];
+      var lastIndex = defaultTagRE.lastIndex = 0; //全局的正则需要每次设置 前置为0
+
+      var match, index; //每次匹配到的结果
 
       while (match = defaultTagRE.exec(text)) {
-        index = match.index;
+        //match     0: "{{a.b}}"   1: "a.b"   groups: undefined   index: 5   input: "hello{{a.b}} world {{c.d}}"
+        index = match.index; // 如果 index > lastindex 说明前面有文本
 
-        if (lastIndex < index) {
-          tokens.push("".concat(JSON.stringify(text.slice(lastIndex, index))));
-          lastIndex = match[0].length + index;
+        if (index > lastIndex) {
+          //放进去
+          tokens.push(JSON.stringify(text.slice(lastIndex, index)).trim());
         }
 
-        tokens.push("_s(".concat(match[1].trim(), ")"));
-      } // 当匹配完成时, 还有可能后面有字符串
+        tokens.push("_s(".concat(match[1].trim(), ")")); // 索引换成 文本的索引加上 当前的长度
+
+        lastIndex = index + match[0].length;
+      } // 如果 lastindex 小于文本总长度，说明最后还有文本
 
 
-      if (text.length > lastIndex) {
-        tokens.push("".concat(text.slice(lastIndex)));
+      if (lastIndex < text.length) {
+        tokens.push(JSON.stringify(text.slice(lastIndex)).trim());
       }
 
       return "_v(".concat(tokens.join('+'), ")");
     }
   }
 
-  function generate(ast) {
-    var code = "";
-    var attrs = ast.attr;
-    var children = ast.children; // 目标字符串: '_c('div',{ id:'box',style:{ color:'red' } },_v('hello'+name),_c('div',undefined,_v('你好,李银河'))'
-
-    code = "_c(\"".concat(ast.tag, "\",").concat(attrs !== null && attrs !== void 0 && attrs.length ? genProps(attrs) : 'undefined', ",").concat(children ? genChildren(children) : '', ")");
+  function generate(el) {
+    var children = genChildren(el);
+    var code = "_c(\"".concat(el.tag, "\",").concat(el.attrs.length ? "".concat(genProps(el.attrs)) : 'undefined').concat(children ? ",".concat(children) : '', ")");
     return code;
   }
 
@@ -571,7 +594,8 @@
 
     var code = generate(ast); //生成render函数备用code字符串
 
-    var render = new Function("with(this){return ".concat(code, "}"));
+    console.log(code);
+    var render = new Function("with(this){ return (".concat(code, ") }"));
     return render;
   }
 
@@ -687,8 +711,7 @@
     Vue.prototype._init = function (options) {
       var vm = this; // 将Vue上的options合并到this.$options上
 
-      this.$options = mergeOptions(this.constructor.options, options);
-      console.log(this.$options); // 对做响应式!\
+      this.$options = mergeOptions(this.constructor.options, options); // 对做响应式!\
 
       callHooks(vm, 'beforeCreate');
       initState(vm);
