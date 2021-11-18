@@ -24,4 +24,8 @@
 
 6: DependCollection
    完成了对对象的依赖收集
+
+7: NextTick
+  完成nextTick函数的编写
+  混入了$nextTick
 ```
