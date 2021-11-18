@@ -86,3 +86,29 @@ export function pushTarget(watcher) {
 export function popTarget() {
   Dep.target = null
 }
+
+let pending = false
+let callbacks = []
+let timerFunc
+if (Promise) {
+  timerFunc = () => {
+    Promise.resolve().then(flushCallbacksQueue)
+  }
+} else {
+  timerFunc = setTimeout(flushCallbacksQueue)
+}
+
+function flushCallbacksQueue() {
+  callbacks.forEach(cb => cb())
+  pending = false
+  callbacks = []
+
+}
+
+export function nextTick(cb) {
+  callbacks.push(cb)
+  if (!pending) {
+    pending = true
+    timerFunc()
+  }
+}

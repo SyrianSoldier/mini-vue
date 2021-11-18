@@ -1,4 +1,4 @@
-import { popTarget, pushTarget } from "../until"
+import { nextTick, popTarget, pushTarget } from "../until"
 
 let id = 0
 class Watcher {
@@ -33,7 +33,33 @@ class Watcher {
     }
   }
   update() {
-    this.getter()
+    // 当有更新时, 执行异步更新策略
+    queueWatcher(this)
+  }
+  run() {
+    this.get()
+  }
+}
+
+let queue = []
+let has = {}
+let pending = false
+function flushSchedulerQueue() {
+  queue.forEach(watcher => watcher.run())
+  queue = []
+  has = {}
+  pending = false
+}
+
+function queueWatcher(watcher) {
+  const id = watcher.id
+  if (!has[id]) {
+    queue.push(watcher)
+    has[id] = true
+  }
+  if (!pending) {
+    pending = true
+    nextTick(flushSchedulerQueue)
   }
 
 }

@@ -1,6 +1,7 @@
 import { globalMixin } from './global/global'
 import { initMixin } from './init'
 import { lifecycleMixin } from './lifecycle'
+import { stateMixin } from './state'
 import { renderMixin } from './vdom/index'
 
 
@@ -13,6 +14,7 @@ function Vue(options) {
 initMixin(Vue)
 renderMixin(Vue)
 lifecycleMixin(Vue)
+stateMixin(Vue)
 // 扩展静态方法
 globalMixin(Vue)
 export default Vue

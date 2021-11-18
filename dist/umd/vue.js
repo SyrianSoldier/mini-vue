@@ -222,6 +222,34 @@
   function popTarget() {
     Dep.target = null;
   }
+  var pending$1 = false;
+  var callbacks = [];
+  var timerFunc;
+
+  if (Promise) {
+    timerFunc = function timerFunc() {
+      Promise.resolve().then(flushCallbacksQueue);
+    };
+  } else {
+    timerFunc = setTimeout(flushCallbacksQueue);
+  }
+
+  function flushCallbacksQueue() {
+    callbacks.forEach(function (cb) {
+      return cb();
+    });
+    pending$1 = false;
+    callbacks = [];
+  }
+
+  function nextTick(cb) {
+    callbacks.push(cb);
+
+    if (!pending$1) {
+      pending$1 = true;
+      timerFunc();
+    }
+  }
 
   function globalMixin(Vue) {
     // mixin的周期存在Vue.options中(缓存池)
@@ -363,6 +391,12 @@
     observer(data); //数据代理
 
     proxy(vm, vm._data);
+  }
+
+  function stateMixin(Vue) {
+    Vue.prototype.$nextTick = function (cb) {
+      nextTick(cb);
+    };
   }
 
   // 匹配标签属性, 三个分组, 第一个分组是属性名, 第二个分组是等号, 第三四五个分组是属性名(分别对应着"" '' 和没有引号)
@@ -645,12 +679,45 @@
     }, {
       key: "update",
       value: function update() {
-        this.getter();
+        // 当有更新时, 执行异步更新策略
+        queueWatcher(this);
+      }
+    }, {
+      key: "run",
+      value: function run() {
+        this.get();
       }
     }]);
 
     return Watcher;
   }();
+
+  var queue = [];
+  var has = {};
+  var pending = false;
+
+  function flushSchedulerQueue() {
+    queue.forEach(function (watcher) {
+      return watcher.run();
+    });
+    queue = [];
+    has = {};
+    pending = false;
+  }
+
+  function queueWatcher(watcher) {
+    var id = watcher.id;
+
+    if (!has[id]) {
+      queue.push(watcher);
+      has[id] = true;
+    }
+
+    if (!pending) {
+      pending = true;
+      nextTick(flushSchedulerQueue);
+    }
+  }
 
   function patch(oldVnode, newVnode) {
     var el = createElm(newVnode);
@@ -796,7 +863,8 @@
 
   initMixin(Vue);
   renderMixin(Vue);
-  lifecycleMixin(Vue); // 扩展静态方法
+  lifecycleMixin(Vue);
+  stateMixin(Vue); // 扩展静态方法
 
   globalMixin(Vue);
 
