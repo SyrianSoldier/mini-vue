@@ -163,7 +163,7 @@
   } // 定义策略模式
 
   var strategies = {};
-  var LIFE_CYCLE_HOOKS = ['beforeCreate', 'created', 'beforeMount', 'mounted', 'beforeUpdated', 'update', 'beforeDestroy', 'destroyed']; // 合并声明周期的逻辑
+  var LIFE_CYCLE_HOOKS = ['beforeCreate', 'created', 'beforeMount', 'mounted', 'beforeUpdate', 'updated', 'beforeDestroy', 'destroyed']; // 合并声明周期的逻辑
 
   LIFE_CYCLE_HOOKS.forEach(function (hook) {
     /* 
@@ -215,13 +215,15 @@
     }
 
     return options;
-  }
+  } // ----------------------------------------------
+
   function pushTarget(watcher) {
     Dep.target = watcher;
   }
   function popTarget() {
     Dep.target = null;
-  }
+  } // -----------------------------------------------
+
   var pending$1 = false;
   var callbacks = [];
   var timerFunc;
@@ -249,7 +251,7 @@
       pending$1 = true;
       timerFunc();
     }
-  }
+  } // -----------------------------------------------
 
   function globalMixin(Vue) {
     // mixin的周期存在Vue.options中(缓存池)
@@ -697,8 +699,14 @@
   var pending = false;
 
   function flushSchedulerQueue() {
+    console.log();
     queue.forEach(function (watcher) {
-      return watcher.run();
+      watcher.run();
+
+      if (!watcher.user) {
+        //如果不是用户watcher, 即为渲染watcher, 调用updated钩子
+        watcher.callback();
+      }
     });
     queue = [];
     has = {};
@@ -758,8 +766,9 @@
     }; // 每一个组件有一个唯一的观察者
 
 
+    callHooks(vm, 'berforeMount');
     new Watcher(vm, updateComponent, function () {
-      callHooks(vm, 'berforeMount');
+      callHooks(vm, 'updated');
     }, true);
     callHooks(vm, 'Mounted');
   }

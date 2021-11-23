@@ -27,17 +27,12 @@
           age: 18,
           arr: [1, 2, 3]
         }
+      },
+      updated() {
+        console.log('updated')
       }
     })
     console.dir(Vue)
-    setTimeout(_ => {
-      vm.arr.push(1)
-      vm.arr.push(2)
-      vm.arr.push(3)
-      vm.arr.push(4)
-      vm.age = 33
-
-    }, 3000)
   </script>
 </body>
 

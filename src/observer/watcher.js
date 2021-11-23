@@ -45,7 +45,13 @@ let queue = []
 let has = {}
 let pending = false
 function flushSchedulerQueue() {
-  queue.forEach(watcher => watcher.run())
+  console.log();
+  queue.forEach(watcher => {
+    watcher.run()
+    if (!watcher.user) { //如果不是用户watcher, 即为渲染watcher, 调用updated钩子
+      watcher.callback()
+    }
+  })
   queue = []
   has = {}
   pending = false

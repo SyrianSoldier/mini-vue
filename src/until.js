@@ -27,8 +27,8 @@ const LIFE_CYCLE_HOOKS = [
   'created',
   'beforeMount',
   'mounted',
-  'beforeUpdated',
-  'update',
+  'beforeUpdate',
+  'updated',
   'beforeDestroy',
   'destroyed'
 ]
@@ -80,6 +80,8 @@ export function mergeOptions(oldOptions, newOptions) {
   }
   return options
 }
+
+// ----------------------------------------------
 export function pushTarget(watcher) {
   Dep.target = watcher
 }
@@ -87,9 +89,12 @@ export function popTarget() {
   Dep.target = null
 }
 
+
+// -----------------------------------------------
 let pending = false
 let callbacks = []
 let timerFunc
+
 if (Promise) {
   timerFunc = () => {
     Promise.resolve().then(flushCallbacksQueue)
@@ -112,3 +117,4 @@ export function nextTick(cb) {
     timerFunc()
   }
 }
+// -----------------------------------------------
