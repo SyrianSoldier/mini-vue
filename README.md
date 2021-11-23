@@ -28,4 +28,14 @@
 7: NextTick
   完成nextTick函数的编写
   混入了$nextTick
+
+8: 完成监视属性watch的编写, 测试效果如下
+    vm.name="王五"
+    index.html:36 王五 张三
+    index.html:32 updated
+
+    vm.name="lisi"
+    index.html:36 lisi 王五
+    index.html:32 updated
+
 ```

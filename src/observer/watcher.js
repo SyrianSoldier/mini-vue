@@ -2,26 +2,42 @@ import { nextTick, popTarget, pushTarget } from "../until"
 
 let id = 0
 class Watcher {
-  constructor(vm, updateComponent, callback, isRender) {
+  constructor(vm, exprOrFunc, callback, options) {
     this.vm = vm
-    this.updateComponent = updateComponent
-    this.callback = callback
-    this.isRender = isRender
+    this.exprOrFunc = exprOrFunc // 渲染watcher时是updateComponent, 用户watcher时是表达式
+    this.callback = callback // 渲染watcher时是updated钩子函数, 用户watcher时是监视的回调函数
+    this.render = options.render || null //记录是否是渲染watcher
+    this.user = options.user || null // 记录是否是用户watcher
+
     this.deps = [] // 记录watcher对应的依赖数据
     this.depsId = new Set() // 利用set去重的特性, 记录
     this.id = id++
-    if (typeof updateComponent === 'function') {
-      this.getter = updateComponent
+    if (typeof exprOrFunc === 'function') {
+      // 渲染watcher逻辑
+      this.getter = exprOrFunc
+    } else {
+      // 用户watcher逻辑
+      this.getter = () => {
+        let obj = vm
+        // 需要考虑表达式为'a.b.c'的形式
+        let expr = this.exprOrFunc.split('.')
+        for (let i = 0; i < expr.length; i++) {
+          // "a.b.c.d" 从vm上取到他的值
+          obj = obj[expr[i]]
+        }
+        return obj // 将读取的值返回
+      }
     }
-
-    this.get()
+    // 保存老值
+    this.value = this.get()
   }
   get() {
     // 每次渲染页面前标记下当前组件被哪个watcher管理
     pushTarget(this)
-    this.getter()
+    const value = this.getter()
     // 渲染页面后取消标记
     popTarget()
+    return value
   }
   addDep(dep) {
     // 双项添加, 组件wather记录收集依赖, 每个依赖记录自己的爹
@@ -37,7 +53,14 @@ class Watcher {
     queueWatcher(this)
   }
   run() {
-    this.get()
+    const oldValue = this.value
+    const newValue = this.get()
+    // 重置value, 本次的newValue 为 下次的oldValue
+    this.value = newValue
+    // 如果为用户watcher, 调用用户handler
+    if (this.user) {
+      this.callback.call(this, newValue, oldValue)
+    }
   }
 }
 
@@ -48,8 +71,8 @@ function flushSchedulerQueue() {
   console.log();
   queue.forEach(watcher => {
     watcher.run()
-    if (!watcher.user) { //如果不是用户watcher, 即为渲染watcher, 调用updated钩子
-      watcher.callback()
+    if (watcher.render) { //如果为渲染watcher, 调用updated钩子
+      watcher.callback.call(this)
     }
   })
   queue = []

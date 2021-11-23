@@ -13,7 +13,7 @@ export function mountComponent(vm, el) {
   }
   // 每一个组件有一个唯一的观察者
   callHooks(vm, 'berforeMount')
-  new Watcher(vm, updateComponent, () => { callHooks(vm, 'updated') }, true)
+  new Watcher(vm, updateComponent, () => { callHooks(vm, 'updated') }, { render: true })
   callHooks(vm, 'Mounted')
 }
 export function callHooks(vm, hook) {

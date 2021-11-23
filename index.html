@@ -30,6 +30,11 @@
       },
       updated() {
         console.log('updated')
+      },
+      watch: {
+        name(newValue, oldValue) {
+          console.log(newValue, oldValue)
+        }
       }
     })
     console.dir(Vue)

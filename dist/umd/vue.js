@@ -263,6 +263,131 @@
     };
   }
 
+  var id = 0;
+
+  var Watcher = /*#__PURE__*/function () {
+    function Watcher(vm, exprOrFunc, callback, options) {
+      var _this = this;
+
+      _classCallCheck(this, Watcher);
+
+      this.vm = vm;
+      this.exprOrFunc = exprOrFunc; // 渲染watcher时是updateComponent, 用户watcher时是表达式
+
+      this.callback = callback; // 渲染watcher时是updated钩子函数, 用户watcher时是监视的回调函数
+
+      this.render = options.render || null; //记录是否是渲染watcher
+
+      this.user = options.user || null; // 记录是否是用户watcher
+
+      this.deps = []; // 记录watcher对应的依赖数据
+
+      this.depsId = new Set(); // 利用set去重的特性, 记录
+
+      this.id = id++;
+
+      if (typeof exprOrFunc === 'function') {
+        // 渲染watcher逻辑
+        this.getter = exprOrFunc;
+      } else {
+        // 用户watcher逻辑
+        this.getter = function () {
+          var obj = vm; // 需要考虑表达式为'a.b.c'的形式
+
+          var expr = _this.exprOrFunc.split('.');
+
+          for (var i = 0; i < expr.length; i++) {
+            // "a.b.c.d" 从vm上取到他的值
+            obj = obj[expr[i]];
+          }
+
+          return obj; // 将读取的值返回
+        };
+      } // 保存老值
+
+
+      this.value = this.get();
+    }
+
+    _createClass(Watcher, [{
+      key: "get",
+      value: function get() {
+        // 每次渲染页面前标记下当前组件被哪个watcher管理
+        pushTarget(this);
+        var value = this.getter(); // 渲染页面后取消标记
+
+        popTarget();
+        return value;
+      }
+    }, {
+      key: "addDep",
+      value: function addDep(dep) {
+        // 双项添加, 组件wather记录收集依赖, 每个依赖记录自己的爹
+        // 如果不重复, 便添加该dep 为了避免 watcher.deps[name,name] 出现多个同名依赖的情况, 一个属性只对应一个依赖
+        if (!this.depsId.has(dep.id)) {
+          this.deps.push(dep);
+          dep.addSub(this);
+          this.depsId.add(dep.id);
+        }
+      }
+    }, {
+      key: "update",
+      value: function update() {
+        // 当有更新时, 执行异步更新策略
+        queueWatcher(this);
+      }
+    }, {
+      key: "run",
+      value: function run() {
+        var oldValue = this.value;
+        var newValue = this.get(); // 重置value, 本次的newValue 为 下次的oldValue
+
+        this.value = newValue; // 如果为用户watcher, 调用用户handler
+
+        if (this.user) {
+          this.callback.call(this, newValue, oldValue);
+        }
+      }
+    }]);
+
+    return Watcher;
+  }();
+
+  var queue = [];
+  var has = {};
+  var pending = false;
+
+  function flushSchedulerQueue() {
+    var _this2 = this;
+
+    console.log();
+    queue.forEach(function (watcher) {
+      watcher.run();
+
+      if (watcher.render) {
+        //如果为渲染watcher, 调用updated钩子
+        watcher.callback.call(_this2);
+      }
+    });
+    queue = [];
+    has = {};
+    pending = false;
+  }
+
+  function queueWatcher(watcher) {
+    var id = watcher.id;
+
+    if (!has[id]) {
+      queue.push(watcher);
+      has[id] = true;
+    }
+
+    if (!pending) {
+      pending = true;
+      nextTick(flushSchedulerQueue);
+    }
+  }
+
   var oldArrayMethods = Array.prototype;
   var protoMethods = Object.create(oldArrayMethods);
   var methods = ['pop', 'push', 'unshift', 'shift', 'reverse', 'sort', 'splice'];
@@ -383,6 +508,7 @@
 
   function initState(vm) {
     initData(vm);
+    initWatch(vm);
   }
 
   function initData(vm) {
@@ -395,9 +521,57 @@
     proxy(vm, vm._data);
   }
 
+  function initWatch(vm) {
+    var watch = vm.$options.watch; // 对watch的多种写法进行兼容性处理
+    // 先处理 value 为数组的情况
+
+    var _loop = function _loop(key) {
+      var handler = watch[key];
+
+      if (Array.isArray(handler)) {
+        handler.forEach(function (handle) {
+          createWatcher(vm, key, handle);
+        });
+      } else {
+        createWatcher(vm, key, handler);
+      }
+    };
+
+    for (var key in watch) {
+      _loop(key);
+    }
+
+    function createWatcher(vm, key, handler) {
+      var options = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {};
+
+      // 处理options的问题
+      if (_typeof(handler) === 'object') {
+        // 处理handler为配置项的问题
+        options = handler;
+        handler = handler.handler;
+      } else if (typeof handler === 'string') {
+        // 处理 handler为method方法的问题
+        handler = vm.handle;
+      } // 标记为用户wacher
+
+
+      options.user = true;
+      return vm.$watch(vm, key, handler, options);
+    }
+  }
+
   function stateMixin(Vue) {
     Vue.prototype.$nextTick = function (cb) {
       nextTick(cb);
+    };
+
+    Vue.prototype.$watch = function (vm, expOrFun, handler, options) {
+      // 若是立即执行,就让他执行一下
+      if (options.immediate) {
+        handler();
+      }
+
+      new Watcher(vm, expOrFun, handler, options);
     };
   }
 
@@ -635,98 +809,6 @@
     return render;
   }
 
-  var id = 0;
-
-  var Watcher = /*#__PURE__*/function () {
-    function Watcher(vm, updateComponent, callback, isRender) {
-      _classCallCheck(this, Watcher);
-
-      this.vm = vm;
-      this.updateComponent = updateComponent;
-      this.callback = callback;
-      this.isRender = isRender;
-      this.deps = []; // 记录watcher对应的依赖数据
-
-      this.depsId = new Set(); // 利用set去重的特性, 记录
-
-      this.id = id++;
-
-      if (typeof updateComponent === 'function') {
-        this.getter = updateComponent;
-      }
-
-      this.get();
-    }
-
-    _createClass(Watcher, [{
-      key: "get",
-      value: function get() {
-        // 每次渲染页面前标记下当前组件被哪个watcher管理
-        pushTarget(this);
-        this.getter(); // 渲染页面后取消标记
-
-        popTarget();
-      }
-    }, {
-      key: "addDep",
-      value: function addDep(dep) {
-        // 双项添加, 组件wather记录收集依赖, 每个依赖记录自己的爹
-        // 如果不重复, 便添加该dep 为了避免 watcher.deps[name,name] 出现多个同名依赖的情况, 一个属性只对应一个依赖
-        if (!this.depsId.has(dep.id)) {
-          this.deps.push(dep);
-          dep.addSub(this);
-          this.depsId.add(dep.id);
-        }
-      }
-    }, {
-      key: "update",
-      value: function update() {
-        // 当有更新时, 执行异步更新策略
-        queueWatcher(this);
-      }
-    }, {
-      key: "run",
-      value: function run() {
-        this.get();
-      }
-    }]);
-
-    return Watcher;
-  }();
-
-  var queue = [];
-  var has = {};
-  var pending = false;
-
-  function flushSchedulerQueue() {
-    console.log();
-    queue.forEach(function (watcher) {
-      watcher.run();
-
-      if (!watcher.user) {
-        //如果不是用户watcher, 即为渲染watcher, 调用updated钩子
-        watcher.callback();
-      }
-    });
-    queue = [];
-    has = {};
-    pending = false;
-  }
-
-  function queueWatcher(watcher) {
-    var id = watcher.id;
-
-    if (!has[id]) {
-      queue.push(watcher);
-      has[id] = true;
-    }
-
-    if (!pending) {
-      pending = true;
-      nextTick(flushSchedulerQueue);
-    }
-  }
-
   function patch(oldVnode, newVnode) {
     var el = createElm(newVnode);
     var parentEle = oldVnode.parentNode;
@@ -769,7 +851,9 @@
     callHooks(vm, 'berforeMount');
     new Watcher(vm, updateComponent, function () {
       callHooks(vm, 'updated');
-    }, true);
+    }, {
+      render: true
+    });
     callHooks(vm, 'Mounted');
   }
   function callHooks(vm, hook) {
