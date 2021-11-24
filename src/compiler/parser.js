@@ -116,6 +116,5 @@ export function htmlParser(html) {
       return match
     }
   }
-
   return root
 }

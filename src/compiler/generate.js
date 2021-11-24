@@ -14,7 +14,8 @@ function genProps(attrs) {
         // 再通过 分割 ： 将键值保存
         const [key, value] = item.split(':');
         obj[key] = value;
-      });
+      })
+      attr.value = obj
     }
     str += `${attr.name}:${JSON.stringify(attr.value)},`
   }

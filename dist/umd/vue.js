@@ -728,6 +728,7 @@
 
             obj[key] = value;
           });
+          attr.value = obj;
         })();
       }
 
@@ -804,17 +805,82 @@
 
     var code = generate(ast); //生成render函数备用code字符串
 
-    console.log(code);
-    var render = new Function("with(this){ return (".concat(code, ") }"));
+    var render = new Function("with(this){ return ".concat(code, " }"));
     return render;
   }
 
   function patch(oldVnode, newVnode) {
-    var el = createElm(newVnode);
-    var parentEle = oldVnode.parentNode;
-    parentEle.insertBefore(el, oldVnode.nextSibling);
-    parentEle.removeChild(oldVnode);
-    return el;
+    if (oldVnode.nodeType === 1) {
+      // 当是初渲染时...
+      // 初渲染时, 第一个参数传的是$el 为真实DOM, 所以有nodeType
+      var el = createElm(newVnode);
+      var parentEle = oldVnode.parentNode;
+      parentEle.insertBefore(el, oldVnode.nextSibling);
+      parentEle.removeChild(oldVnode);
+      return el;
+    } else {
+      // 第一个参数为vnode时, 即新旧节点对比
+      if (oldVnode.tag !== newVnode.tag) {
+        // 如果两个节点的标签都不一样就不复用了, 直接替换
+        var oldEl = oldVnode.el;
+        var newEl = createElm(newVnode);
+        return oldVnode.el.parentNode.replaceChild(newEl, oldEl);
+      } // 走到这里 新旧vnode的标签名是一样的
+      // 接着判断节点为文本节点的情况
+      // 文本节点的tag为undefined
+
+
+      if (!oldVnode.tag) {
+        if (oldVnode.text !== newVnode.text) {
+          return oldVnode.el.textContent = newVnode.text;
+        }
+      } // 走到这里 标签名相同, 且不是文本节点, 开始属性复用, 子节点复用
+      // 属性复用
+      // 将老节点赋值给新节点, 比对完成后直接操作新节点上的属性
+
+
+      newVnode.el = oldVnode.el;
+
+      updateProperties(newVnode, oldVnode);
+    }
+  }
+
+  function updateProperties(newVnode) {
+    var oldVnode = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    var el = newVnode.el,
+        newAttrs = newVnode.data || {},
+        oldAttrs = oldVnode.data || {}; // 老节点有该属性新节点没有, 删除
+
+    for (var key in oldAttrs) {
+      if (!newAttrs[key]) {
+        el.removeAttribute(key);
+      }
+    }
+
+    var newStyle = newAttrs.style;
+    var oldStyle = oldAttrs.style;
+
+    for (var _key in oldStyle) {
+      // 与上方相同的逻辑, 单独处理style
+      if (!newStyle[_key]) {
+        el.style[_key] = '';
+      }
+    } // 新节点的属性, 全部覆盖掉
+
+
+    for (var _key2 in newAttrs) {
+      if (_key2 === 'style') {
+        var styles = newAttrs[_key2];
+
+        for (var k in styles) {
+          el.style[k] = styles[k];
+        }
+      } else if (_key2 === 'class') {
+        el.className = newAttrs[_key2];
+      } else {
+        el.setAttribute(_key2, newAttrs[_key2]);
+      }
+    }
   }
 
   function createElm(vnode) {
@@ -826,6 +892,7 @@
 
     if (typeof tag === 'string') {
       vnode.el = document.createElement(tag);
+      updateProperties(vnode);
       children && children.forEach(function (child) {
         vnode.el.appendChild(createElm(child));
       });
@@ -959,7 +1026,27 @@
   lifecycleMixin(Vue);
   stateMixin(Vue); // 扩展静态方法
 
-  globalMixin(Vue);
+  globalMixin(Vue); // -------------  测试  ---------------
+  var vm1 = new Vue({
+    data: {
+      name: '张三'
+    }
+  });
+  var render1 = compileToFunctions('<div id="a" style="background:red;color:orange">{{ name }}</div>');
+  var oldVnode = render1.call(vm1);
+  document.body.appendChild(createElm(oldVnode)); // ---------------------------------------------- 
+
+  var vm2 = new Vue({
+    data: {
+      name: '李四'
+    }
+  });
+  var render2 = compileToFunctions('<div id="b" style="background:blue;color:gold">{{ name }}</div>');
+  var newVnode = render2.call(vm2);
+  console.log(newVnode);
+  setTimeout(function (_) {
+    patch(oldVnode, newVnode);
+  }, 2000); // -------------  测试  ---------------
 
   return Vue;
 
